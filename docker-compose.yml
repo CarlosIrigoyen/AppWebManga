@@ -1,38 +1,56 @@
-version: "3.1"
+version: '3.8'
 
 services:
-  Manga:
-    image: postgres:16
-    env_file: 
-      - api/.env
-    environment:
-    
-      POSTGRES_DB: AppManga
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+  api:
+    build:
+      context: ./api  
+    container_name: appwebmanga-api
     volumes:
-      - ./data/pg_data:/var/lib/postgresql/data
+      - ./api:/var/www/html
     ports:
-      - 5432:5432
+      - "8000:8000"
+    depends_on:
+      - db
+    networks:
+      - appnet
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=AppManga
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=12345678
 
   gui:
-    image: node:20-alpine
-    working_dir: /app
-    command: "npm run start"
+    build:
+      context: ./gui  
+    container_name: appwebmanga-gui
     volumes:
       - ./gui:/app
     ports:
-      - 3000:3000
+      - "3000:3000"
     depends_on:
-      - Manga
+      - api
+    networks:
+      - appnet
 
-  api:
-    build: ./api
-    working_dir: /var/www/
+  db:
+    image: postgres:16
+    container_name: appwebmanga-db
+    environment:
+      - POSTGRES_DB=AppManga
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
     volumes:
-      - ./api:/var/www/
+      - postgres_data:/var/lib/postgresql/data
     ports:
-      - 8000:8000
-    depends_on:
-      - Manga
-    command: php artisan serve --host=0.0.0.0 --port=8000
+      - "5432:5432"
+    networks:
+      - appnet
+
+networks:
+  appnet:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

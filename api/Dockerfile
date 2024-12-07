@@ -1,43 +1,36 @@
-# Usar la imagen oficial de PHP con Apache
-FROM php:8.2-apache
+# Utiliza la imagen oficial de PHP con Composer
+FROM php:8.3.6-cli
 
-# Configurar límites de memoria y tamaño de carga
-RUN echo 'memory_limit = 512M' >> /usr/local/etc/php/conf.d/docker-php-memlimit.ini
-RUN echo 'upload_max_filesize = 40M' >> /usr/local/etc/php/conf.d/docker-php-uploads.ini
-
-# Instalar dependencias necesarias
-RUN apt-get update && apt-get -qq -y install curl --no-install-recommends \
-    libpq-dev \
+# Instala dependencias necesarias
+RUN apt-get update && apt-get install -y \
     git \
     unzip \
-    libzip-dev \
-    zlib1g-dev \
-    libfreetype6-dev \
-    libjpeg62-turbo-dev \
     libpng-dev \
+    libjpeg62-turbo-dev \
+    libfreetype6-dev \
+    libpq-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) zip pdo pdo_pgsql bcmath gd sockets
+    && docker-php-ext-install gd \
+    && docker-php-ext-install pdo_pgsql pgsql
 
-# Instalar Composer
-RUN php -r "readfile('https://getcomposer.org/installer');" | php -- --install-dir=/usr/bin/ --filename=composer
-
-# Habilitar el módulo de reescritura de Apache
-RUN a2enmod rewrite
-
-# Configurar el directorio de trabajo
+# Establece el directorio de trabajo
 WORKDIR /var/www
 
-# Copiar los archivos del proyecto
-COPY ./ /var/www
+# Copia los archivos del proyecto al contenedor
+COPY . .
 
-# Configurar permisos
-RUN chmod -R 0777 /var/www/storage /var/www/bootstrap/cache
+# Instala Composer si no está instalado
+RUN if [ ! -f /usr/local/bin/composer ]; then \
+        curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer; \
+    fi
 
-# Instalar dependencias de Composer en modo optimizado
-RUN composer install --no-dev --optimize-autoloader
+# Verifica si las dependencias de Composer están instaladas, si no, las instala
+RUN if [ ! -d "vendor" ]; then \
+        composer install --no-interaction --prefer-dist; \
+    fi
 
-# Comando para iniciar Laravel
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+# Expone el puerto que usará la API
+EXPOSE 80
 
-# Exponer el puerto 8000
-EXPOSE 8000
+# Comando para iniciar el servidor de Laravel
+CMD ["php", "artisan", "serve", "--host=0.0.0.0"]
